@@ -41,6 +41,7 @@ import android.os.Handler;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -97,6 +98,7 @@ public class SmartBarView extends BaseNavigationBar {
         sUris.add(Settings.Secure.getUriFor(Settings.Secure.NAVBAR_BUTTONS_ALPHA));
         sUris.add(Settings.Secure.getUriFor(Settings.Secure.ONE_HANDED_MODE_UI));
         sUris.add(Settings.Secure.getUriFor(Settings.Secure.PULSE_CUSTOM_BUTTONS_OPACITY));
+        sUris.add(Settings.System.getUriFor(Settings.System.SMARTBAR_DOUBLETAP_SLEEP));
         sUris.add(Settings.Secure.getUriFor(Settings.Secure.SMARTBAR_LONGPRESS_DELAY));
     }
 
@@ -121,6 +123,8 @@ public class SmartBarView extends BaseNavigationBar {
                 updateOneHandedModeSetting();
             } else if (uri.equals(Settings.Secure.getUriFor(Settings.Secure.PULSE_CUSTOM_BUTTONS_OPACITY))) {
                 updatePulseNavButtonsOpacity();
+            } else if (uri.equals(Settings.System.getUriFor(Settings.System.SMARTBAR_DOUBLETAP_SLEEP))) {
+                updateNavDoubletapSetting();
             } else if (uri.equals(Settings.Secure.getUriFor(Settings.Secure.SMARTBAR_LONGPRESS_DELAY))) {
                 updateButtonLongpressDelay();
             }
@@ -139,6 +143,7 @@ public class SmartBarView extends BaseNavigationBar {
     private boolean mHasLeftContext;
     private boolean mMusicStreamMuted;
     private boolean isOneHandedModeEnabled;
+    private boolean isNavDoubleTapEnabled;
     private int mImeHintMode;
     private int mButtonAnimationStyle;
     private float mCustomAlpha;
@@ -178,6 +183,8 @@ public class SmartBarView extends BaseNavigationBar {
                 mAudioManager.getStreamVolume(streamType) == 0);
     }
 
+    private GestureDetector mNavDoubleTapToSleep;
+
     public SmartBarView(Context context, boolean asDefault) {
         super(context);
         mBarTransitions = new SmartBarTransitions(this);
@@ -188,6 +195,15 @@ public class SmartBarView extends BaseNavigationBar {
             mSmartObserver.addListener(mObservable);
         }
         createBaseViews();
+
+        mNavDoubleTapToSleep = new GestureDetector(context,
+                new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                ActionHandler.performTask(context, ActionHandler.SYSTEMUI_TASK_SCREENOFF);
+                return true;
+            }
+        });
 
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mMusicStreamMuted = isMusicMuted(AudioManager.STREAM_MUSIC);
@@ -216,6 +232,9 @@ public class SmartBarView extends BaseNavigationBar {
         if (isOneHandedModeEnabled) {
             mSlideTouchEvent.handleTouchEvent(event);
         }
+        if (isNavDoubleTapEnabled) {
+            mNavDoubleTapToSleep.onTouchEvent(event);
+        }
         return super.onTouchEvent(event);
     }
 
@@ -234,6 +253,7 @@ public class SmartBarView extends BaseNavigationBar {
         updateImeHintModeSettings();
         updateContextLayoutSettings();
         updateOneHandedModeSetting();
+        updateNavDoubletapSetting();
         updateButtonLongpressDelay();
     }
 
@@ -632,6 +652,11 @@ public class SmartBarView extends BaseNavigationBar {
     private void updateOneHandedModeSetting() {
         isOneHandedModeEnabled = Settings.Secure.getIntForUser(getContext().getContentResolver(),
                 Settings.Secure.ONE_HANDED_MODE_UI, 0, UserHandle.USER_CURRENT) == 1;
+    }
+
+    private void updateNavDoubletapSetting() {
+        isNavDoubleTapEnabled = Settings.System.getIntForUser(getContext().getContentResolver(),
+                Settings.System.SMARTBAR_DOUBLETAP_SLEEP, 1, UserHandle.USER_CURRENT) == 1;
     }
 
     void recreateButtonLayout(ArrayList<ButtonConfig> buttonConfigs, boolean landscape,
